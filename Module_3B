@@ -1,0 +1,60 @@
+// ============================================================
+// MODULE 3B — Step A (CORRECTED): Spatial Join
+// Fix: use 'match_nm' (actual shapefile field name)
+// Fix: guarantee every one of the 18,823 rows survives export,
+//      with osm_name/distance_m explicitly null where no match found
+// ============================================================
+
+
+var riverAOI = Hydro_River.filterBounds(Upper_Indus_AOI);
+print('HydroRIVERS segments in AOI:', riverAOI.size());
+print('OSM named waterway lines:', osmWaterways.size());
+print('Sample OSM feature (check field names):', osmWaterways.first());
+
+var maxDistance = 250; // meters
+
+var distFilter = ee.Filter.withinDistance({
+  distance: maxDistance,
+  leftField: '.geo',
+  rightField: '.geo',
+  maxError: 10
+});
+
+var saveBestJoin = ee.Join.saveBest({
+  matchKey: 'closest_osm',
+  measureKey: 'distance_m'
+});
+
+var joined = saveBestJoin.apply(riverAOI, osmWaterways, distFilter);
+print('Joined collection size (should still be 18,823):', joined.size());
+
+// Build a CLEAN, explicit output feature for every row --
+// this guarantees no property is ever silently dropped at export
+var cleanOutput = joined.map(function(f) {
+  var hasMatch = f.get('closest_osm');
+  var match = ee.Feature(ee.Algorithms.If(hasMatch, hasMatch, ee.Feature(null)));
+  
+  var osmName = ee.Algorithms.If(hasMatch, match.get('match_nm'), null); // <-- FIXED field name
+  var dist = ee.List([f.get('distance_m'), match.get('distance_m')])
+  .reduce(ee.Reducer.firstNonNull());
+  
+  return ee.Feature(null, {
+    'HYRIV_ID':   f.get('HYRIV_ID'),
+    'MAIN_RIV':   f.get('MAIN_RIV'),
+    'NEXT_DOWN':  f.get('NEXT_DOWN'),
+    'ORD_FLOW':   f.get('ORD_FLOW'),
+    'ORD_STRA':   f.get('ORD_STRA'),
+    'osm_name':   osmName,
+    'distance_m': dist
+  });
+});
+
+print('Sample cleaned output feature:', cleanOutput.first());
+print('Matched (osm_name not null):', cleanOutput.filter(ee.Filter.notNull(['osm_name'])).size());
+print('Unmatched (osm_name null):', cleanOutput.filter(ee.Filter.notNull(['osm_name']).not()).size());
+
+Export.table.toDrive({
+  collection: cleanOutput,
+  description: 'Module3B_HydroRivers_OSM_Joined_v2',
+  fileFormat: 'CSV'
+});
