@@ -1,0 +1,357 @@
+// =====================================================
+// FYP: Hybrid Flood Prediction System
+// Module 1B : Find Upper Indus Basin - Level 8
+// =====================================================
+
+// =====================================================
+// Load HydroSHEDS Level 8
+// Imported as: hybas8
+// =====================================================
+
+
+// =====================================================
+// STEP 1 : Define Jinnah Barrage
+// =====================================================
+
+var jinnah = ee.Geometry.Point([71.547, 32.934]);
+
+Map.addLayer(
+  jinnah,
+  {color: 'red'},
+  'Jinnah Barrage'
+);
+
+Map.centerObject(
+  jinnah,
+  11
+);
+
+
+// =====================================================
+// STEP 2 : Find Basin Containing Jinnah
+// =====================================================
+
+var jinnahBasin = hybas8.filterBounds(jinnah);
+
+Map.addLayer(
+  jinnahBasin,
+  {},
+  "Jinnah Level-8 Basin"
+);
+
+print(
+  "Jinnah Level-8 Basin",
+  jinnahBasin
+);
+
+
+// Display boundary
+
+Map.addLayer(
+  ee.Image().byte().paint(
+    jinnahBasin,
+    1,
+    3
+  ),
+  {palette: ['red']},
+  "Jinnah Level-8 Basin Boundary"
+);
+
+
+// =====================================================
+// STEP 3 : Get Jinnah Basin Information
+// =====================================================
+
+var jinnahFeature = jinnahBasin.first();
+
+print(
+  "Jinnah Basin Feature:",
+  jinnahFeature
+);
+
+print(
+  "Jinnah HYBAS_ID:",
+  jinnahFeature.get("HYBAS_ID")
+);
+
+print(
+  "Jinnah NEXT_DOWN:",
+  jinnahFeature.get("NEXT_DOWN")
+);
+
+print(
+  "Jinnah MAIN_BAS:",
+  jinnahFeature.get("MAIN_BAS")
+);
+
+print(
+  "Jinnah PFAF_ID:",
+  jinnahFeature.get("PFAF_ID")
+);
+
+
+// =====================================================
+// STEP 4 : Get Jinnah Basin ID Automatically
+// =====================================================
+
+var JINNAH_ID = jinnahFeature.get("HYBAS_ID");
+
+print(
+  "Starting Jinnah Level-8 HYBAS_ID:",
+  JINNAH_ID
+);
+
+
+// =====================================================
+// STEP 5 : Find Direct Upstream Basins
+// =====================================================
+
+var upstreamBasins = hybas8.filter(
+  ee.Filter.eq(
+    "NEXT_DOWN",
+    JINNAH_ID
+  )
+);
+
+Map.addLayer(
+  upstreamBasins,
+  {color: "red"},
+  "Direct Upstream Basins"
+);
+
+print(
+  "Number of Direct Upstream Basins:",
+  upstreamBasins.size()
+);
+
+print(
+  "Direct Upstream Basin IDs:",
+  upstreamBasins.aggregate_array("HYBAS_ID")
+);
+
+
+// =====================================================
+// STEP 6 : Hybrid BFS Upstream Traversal - Level 8
+// =====================================================
+
+// Starting basin = Jinnah Level-8 basin
+
+var queue = [];
+
+JINNAH_ID.evaluate(function(id) {
+
+  queue.push(id);
+
+  processQueue();
+
+});
+
+
+// Store all visited basin IDs
+
+var visited = [];
+
+
+// =====================================================
+// STEP 6A : Finish Traversal
+// =====================================================
+
+function finishTraversal() {
+
+  print("========================================");
+  print("LEVEL-8 BFS TRAVERSAL COMPLETED");
+  print("========================================");
+
+  print(
+    "Total Level-8 Basins:",
+    visited.length
+  );
+
+  print(
+    "Visited Level-8 Basin IDs:",
+    visited
+  );
+
+
+  // -----------------------------------------
+  // Create Final Level-8 AOI
+  // -----------------------------------------
+
+  var finalAOI = hybas8.filter(
+    ee.Filter.inList(
+      "HYBAS_ID",
+      visited
+    )
+  );
+
+  print(
+    "Final Level-8 Polygon Count:",
+    finalAOI.size()
+  );
+
+
+  // -----------------------------------------
+  // Display Final AOI
+  // -----------------------------------------
+
+  Map.addLayer(
+    finalAOI,
+    {
+      color: "blue"
+    },
+    "FINAL AOI - Upper Indus Level 8"
+  );
+
+
+  // -----------------------------------------
+  // Export Final Level-8 AOI
+  // -----------------------------------------
+
+  Export.table.toAsset({
+
+    collection: finalAOI,
+
+    description:
+      "Upper_Indus_AOI_Level8_Export",
+
+    assetId:
+      "projects/digitalfte-483822/assets/Upper_Indus_AOI_Level8"
+
+  });
+
+
+  print(
+    "Export task created:",
+    "Upper_Indus_AOI_Level8"
+  );
+}
+
+
+// =====================================================
+// STEP 6B : BFS Processing Function
+// =====================================================
+
+function processQueue() {
+
+
+  // -----------------------------------------
+  // Check if traversal is finished
+  // -----------------------------------------
+
+  if (queue.length === 0) {
+
+    finishTraversal();
+
+    return;
+
+  }
+
+
+  // -----------------------------------------
+  // Take first basin from queue
+  // -----------------------------------------
+
+  var current = queue.shift();
+
+
+  // -----------------------------------------
+  // Skip if already visited
+  // -----------------------------------------
+
+  if (
+    visited.indexOf(current) !== -1
+  ) {
+
+    processQueue();
+
+    return;
+
+  }
+
+
+  // -----------------------------------------
+  // Add current basin to visited list
+  // -----------------------------------------
+
+  visited.push(current);
+
+
+  print(
+    "----------------------------------------"
+  );
+
+  print(
+    "Current Level-8 Basin:",
+    current
+  );
+
+
+  // -----------------------------------------
+  // Find direct upstream basins
+  //
+  // A basin is upstream of CURRENT
+  // when its NEXT_DOWN = CURRENT
+  // -----------------------------------------
+
+  var parents = hybas8.filter(
+    ee.Filter.eq(
+      "NEXT_DOWN",
+      current
+    )
+  );
+
+
+  // -----------------------------------------
+  // Get upstream HYBAS IDs
+  // -----------------------------------------
+
+  parents
+    .aggregate_array("HYBAS_ID")
+    .evaluate(function(ids) {
+
+
+      print(
+        "Upstream Basins:",
+        ids
+      );
+
+
+      // -------------------------------------
+      // Add new upstream basins to queue
+      // -------------------------------------
+
+      ids.forEach(function(id) {
+
+
+        if (
+          visited.indexOf(id) === -1 &&
+          queue.indexOf(id) === -1
+        ) {
+
+          queue.push(id);
+
+        }
+
+      });
+
+
+      print(
+        "Current Queue Size:",
+        queue.length
+      );
+
+
+      // -------------------------------------
+      // Continue BFS
+      // -------------------------------------
+
+      processQueue();
+
+    });
+
+}
+
+
+// =====================================================
+// END
+// =====================================================
