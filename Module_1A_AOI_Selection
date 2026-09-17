@@ -1,0 +1,83 @@
+// =====================================================
+// FYP: Hybrid Flood Prediction System
+// Module 1A: AOI Selection
+// Dataset: WWF HydroSHEDS Basin Level 6
+// =====================================================
+
+
+// =====================================================
+// STEP 1: Load HydroSHEDS Level 6
+// =====================================================
+
+// Display HydroSHEDS Level 6 Basins
+Map.addLayer(hybas6, {}, "HydroSHEDS Level 6");
+
+// Zoom to Upper Indus Region
+Map.setCenter(72.5, 33.5, 5);
+
+// Total number of basins
+print("Total Level 6 Basins:", hybas6.size());
+
+
+// =====================================================
+// STEP 2: Explore Dataset Structure
+// =====================================================
+
+// Print one sample basin
+print("Sample Basin:", hybas6.first());
+
+// Print first 10 basins
+print("First 10 Basins:", hybas6.limit(10));
+
+// Print all property names
+print("Property Names:", hybas6.first().propertyNames());
+
+// =====================================================
+// STEP 3 : Inspect Sample Basin Properties
+// =====================================================
+
+var sample = ee.Feature(hybas6.first());
+
+print("Sample Properties", sample.toDictionary());
+
+
+// for nasa extraction
+// Load our already saved final Upper Indus AOI
+var finalAOI = ee.FeatureCollection(
+'projects/digitalfte-483822/assets/Upper_Indus_AOI_Level6'
+);
+
+print('Original Final AOI:', finalAOI);
+print('Number of Level 6 basins:', finalAOI.size());
+
+// Merge all Level 6 basin polygons into one geometry
+var mergedAOI = finalAOI.geometry();
+
+// Convert merged geometry into ONE feature
+var nasaAOI = ee.FeatureCollection([
+ee.Feature(mergedAOI, {
+name: 'Upper_Indus_AOI'
+})
+]);
+
+// Check result
+print('NASA AOI:', nasaAOI);
+print('NASA AOI feature count:', nasaAOI.size());
+
+// Display only our NASA AOI
+Map.addLayer(
+nasaAOI,
+{color: 'red'},
+'NASA Single Upper Indus AOI'
+);
+
+Map.centerObject(nasaAOI, 5);
+
+// Export shapefile to Google Drive
+Export.table.toDrive({
+collection: nasaAOI,
+description: 'Upper_Indus_NASA_Single_AOI',
+folder: 'FYP_GEE_Exports',
+fileNamePrefix: 'Upper_Indus_NASA_Single_AOI',
+fileFormat: 'SHP'
+});
