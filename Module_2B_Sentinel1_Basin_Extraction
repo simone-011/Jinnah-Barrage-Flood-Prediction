@@ -1,0 +1,127 @@
+// =====================================================
+// Module 2B : Sentinel-1 Basin Feature Extraction
+// =====================================================
+
+// Load Upper Indus AOI
+var AOI = Upper_Indus_AOI;
+
+Map.centerObject(AOI,6);
+
+Map.addLayer(
+    AOI,
+    {color:'red'},
+    "Upper Indus AOI"
+);
+
+// Load Sentinel-1 Collection
+
+print("Total Basins:", AOI.size());
+
+
+var s1 = ee.ImageCollection("COPERNICUS/S1_GRD")
+    .filterBounds(AOI)
+    .filterDate("2015-01-01", "2026-12-31")
+    .filter(ee.Filter.eq("instrumentMode","IW"))
+    .filter(ee.Filter.listContains(
+        "transmitterReceiverPolarisation","VV"))
+    .filter(ee.Filter.listContains(
+        "transmitterReceiverPolarisation","VH"));
+
+print("Sentinel Images:", s1.size());
+
+// ==========================================
+// Select First Available Sentinel Image
+// ==========================================
+
+var image = ee.Image(s1.first());
+
+print("First Image", image);
+
+Map.addLayer(
+    image.select("VV"),
+    {min:-25,max:5},
+    "VV"
+);
+
+Map.addLayer(
+    image.geometry(),
+    {color:'blue'},
+    "Image Footprint"
+);
+
+// Print Image Information
+
+print(
+    "Image ID",
+    image.get("system:index")
+);
+
+print(
+    "Date",
+    ee.Date(image.get("system:time_start"))
+);
+
+print(
+    "Orbit",
+    image.get("orbitProperties_pass")
+);
+
+print(
+    "Satellite",
+    image.get("platform_number")
+);
+
+// Test on One Basin
+
+// Basins covered by this image
+
+var intersectingBasins = AOI.filterBounds(image.geometry());
+
+print("Intersecting Basins:", intersectingBasins);
+print("Count:", intersectingBasins.size());
+
+Map.addLayer(
+    intersectingBasins,
+    {color:'yellow'},
+    "Intersecting Basins"
+);
+
+// Take first intersecting basin
+
+var basin = ee.Feature(intersectingBasins.first());
+
+Map.addLayer(
+    basin.geometry(),
+    {color:'yellow'},
+    "Test Basin"
+);
+
+// Extract VV_mean & VH_mean
+
+var stats = image.select(["VV","VH"]).reduceRegion({
+
+    reducer: ee.Reducer.mean(),
+
+    geometry: basin.geometry(),
+
+    scale:10,
+
+    maxPixels:1e13,
+
+    bestEffort:true
+
+});
+
+print("Statistics", stats);
+
+// Print Basin Name
+
+print(
+    "HYBAS_ID",
+    basin.get("HYBAS_ID")
+);
+
+print(
+    "PFAF_ID",
+    basin.get("PFAF_ID")
+);
