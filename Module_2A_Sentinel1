@@ -1,0 +1,112 @@
+// =====================================================
+// FYP: Hybrid Flood Prediction System
+// Module 2A : Sentinel-1 Data Collection
+// =====================================================
+
+
+// -----------------------------------------
+// Import Upper Indus AOI Asset
+// -----------------------------------------
+
+var AOI = Upper_Indus_AOI.geometry();
+
+Map.centerObject(AOI,6);
+
+Map.addLayer(
+    AOI,
+    {color:'red'},
+    "Upper Indus AOI"
+);
+
+// =====================================================
+// STEP 2 : Load Sentinel-1 GRD Collection
+// =====================================================
+
+var sentinel1 = ee.ImageCollection("COPERNICUS/S1_GRD");
+
+// =====================================================
+// STEP 3 : Filter by AOI
+// =====================================================
+
+var s1AOI = sentinel1.filterBounds(AOI);
+
+print("Images over AOI:", s1AOI.size());
+
+// =====================================================
+// STEP 4 : Filter by Date
+// =====================================================
+
+var s1Date = s1AOI.filterDate(
+    '2015-01-01',
+    '2026-07-31'
+);
+
+print("Images (2015-Present):", s1Date.size());
+
+// =====================================================
+// STEP 5 : Filter IW Mode
+// =====================================================
+
+var s1IW = s1Date.filter(
+    ee.Filter.eq('instrumentMode', 'IW')
+);
+
+print("IW Images:", s1IW.size());
+
+// =====================================================
+// STEP 6 : Keep VV + VH Images
+// =====================================================
+
+var s1 = s1IW
+    .filter(ee.Filter.listContains(
+        'transmitterReceiverPolarisation',
+        'VV'
+    ))
+    .filter(ee.Filter.listContains(
+        'transmitterReceiverPolarisation',
+        'VH'
+    ));
+
+print("Final Sentinel-1 Images:", s1.size());
+
+// =====================================================
+// STEP 7 : Inspect First Image
+// =====================================================
+
+var firstImage = s1.first();
+
+print("First Image:", firstImage);
+
+// =====================================================
+// STEP 8 : Acquisition Dates
+// =====================================================
+
+var acquisitionDates = s1.aggregate_array('system:time_start')
+  .map(function(time){
+    return ee.Date(time).format('YYYY-MM-dd');
+  });
+
+print("Acquisition Dates", acquisitionDates);
+
+// =====================================================
+// STEP 9 : Images Per Year
+// =====================================================
+
+var years = ee.List.sequence(2015, 2026);
+
+var yearlyCount = years.map(function(year){
+
+  year = ee.Number(year);
+
+  var count = s1
+      .filter(ee.Filter.calendarRange(year, year, 'year'))
+      .size();
+
+  return ee.Feature(null, {
+      Year: year,
+      Images: count
+  });
+
+});
+
+print("Images Per Year", ee.FeatureCollection(yearlyCount));
