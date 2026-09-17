@@ -1,0 +1,33 @@
+// ==============================================
+// Module 2D — Basin-to-River Classification (Level-7)
+// ==============================================
+
+var AOI = Upper_Indus_AOI; // apna Level-7 asset import
+
+Map.centerObject(AOI, 6);
+Map.addLayer(AOI, {color: 'blue'}, 'All Basins (Level-7)');
+
+print('Total basins:', AOI.size());
+
+// Har basin ka HYBAS_ID, NEXT_DOWN, Area, aur centroid lat/lon
+// — ek hi clean summary string mein, taake tree + geography dono sath verify ho sakein
+var basinsWithInfo = AOI.map(function(f) {
+  var c = f.geometry().centroid(1).coordinates();
+  var id = ee.Number(f.get('HYBAS_ID')).format();
+  var nextDown = ee.Number(f.get('NEXT_DOWN')).format();
+  var area = ee.Number(f.get('SUB_AREA')).format('%.1f');
+  var lat = ee.Number(c.get(1)).format('%.3f');
+  var lon = ee.Number(c.get(0)).format('%.3f');
+
+  var summary = ee.String('ID: ').cat(id)
+    .cat(' | NEXT_DOWN: ').cat(nextDown)
+    .cat(' | Area: ').cat(area)
+    .cat(' | Lat: ').cat(lat)
+    .cat(' | Lon: ').cat(lon);
+
+  return f.set('summary', summary);
+});
+
+print('All basins (ID, NEXT_DOWN, Area, Lat, Lon):',
+  basinsWithInfo.aggregate_array('summary')
+);
