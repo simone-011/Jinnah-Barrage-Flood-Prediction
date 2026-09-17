@@ -1,0 +1,191 @@
+// =====================================================
+// Module 2C
+// Historical Full AOI Coverage Detection
+// =====================================================
+
+
+// -------------------------------------
+// Load Upper Indus AOI
+// -------------------------------------
+
+var AOI = Upper_Indus_AOI;
+
+Map.centerObject(AOI,6);
+
+Map.addLayer(
+    AOI,
+    {color:'red'},
+    "Upper Indus AOI"
+);
+
+
+// -------------------------------------
+// Load Sentinel-1 Collection
+// -------------------------------------
+
+var s1 = ee.ImageCollection("COPERNICUS/S1_GRD")
+
+    .filterBounds(AOI)
+
+    .filterDate("2015-01-01","2026-12-31")
+
+    .filter(
+        ee.Filter.eq(
+            "instrumentMode",
+            "IW"
+        )
+    )
+
+    .filter(
+        ee.Filter.listContains(
+            "transmitterReceiverPolarisation",
+            "VV"
+        )
+    )
+
+    .filter(
+        ee.Filter.listContains(
+            "transmitterReceiverPolarisation",
+            "VH"
+        )
+    );
+
+print("Total Sentinel Images",s1.size());
+
+
+// -------------------------------------
+// Create Acquisition Date Property
+// -------------------------------------
+
+var withDate = s1.map(function(img){
+
+    return img.set(
+
+        "Date",
+
+        ee.Date(
+            img.get("system:time_start")
+        ).format("YYYY-MM-dd")
+
+    );
+
+});
+
+
+// -------------------------------------
+// Unique Dates
+// -------------------------------------
+
+var uniqueDates = ee.List(
+
+    withDate
+        .aggregate_array("Date")
+
+)
+.distinct()
+.sort();
+
+print(
+    "Total Unique Dates",
+    uniqueDates.size()
+);
+
+print(
+    "First 20 Dates",
+    uniqueDates.slice(0,20)
+);// =====================================================
+// Module 2C
+// Historical Full AOI Coverage Detection
+// =====================================================
+
+
+// -------------------------------------
+// Load Upper Indus AOI
+// -------------------------------------
+
+var AOI = Upper_Indus_AOI;
+
+Map.centerObject(AOI,6);
+
+Map.addLayer(
+    AOI,
+    {color:'red'},
+    "Upper Indus AOI"
+);
+
+
+// -------------------------------------
+// Load Sentinel-1 Collection
+// -------------------------------------
+
+var s1 = ee.ImageCollection("COPERNICUS/S1_GRD")
+
+    .filterBounds(AOI)
+
+    .filterDate("2015-01-01","2026-12-31")
+
+    .filter(
+        ee.Filter.eq(
+            "instrumentMode",
+            "IW"
+        )
+    )
+
+    .filter(
+        ee.Filter.listContains(
+            "transmitterReceiverPolarisation",
+            "VV"
+        )
+    )
+
+    .filter(
+        ee.Filter.listContains(
+            "transmitterReceiverPolarisation",
+            "VH"
+        )
+    );
+
+print("Total Sentinel Images",s1.size());
+
+
+// -------------------------------------
+// Create Acquisition Date Property
+// -------------------------------------
+
+var withDate = s1.map(function(img){
+
+    return img.set(
+
+        "Date",
+
+        ee.Date(
+            img.get("system:time_start")
+        ).format("YYYY-MM-dd")
+
+    );
+
+});
+
+
+// -------------------------------------
+// Unique Dates
+// -------------------------------------
+
+var uniqueDates = ee.List(
+
+    withDate
+        .aggregate_array("Date")
+
+)
+.distinct()
+.sort();
+
+print(
+    "Total Unique Dates",
+    uniqueDates.size()
+);
+
+print(
+    "First 20 Dates",
+    uniqueDates.slice(0,20)
+);
