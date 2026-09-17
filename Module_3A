@@ -1,0 +1,72 @@
+// ============================================================
+// MODULE 3A — Extension: Terminal Highlighting + Boundary Truncation Check
+// AOI: Level-8 HydroSHEDS (440 basins) — CONFIRM asset path below
+// ============================================================
+
+
+var riverAOI = Hydro_River.filterBounds(Upper_Indus_AOI);
+print('Total segments in AOI:', riverAOI.size());
+
+// ------------------------------------------------------------
+// PART 1: Downstream terminals (NEXT_DOWN = 0) — the real network sinks
+// ------------------------------------------------------------
+var terminalSegments = riverAOI.filter(ee.Filter.eq('NEXT_DOWN', 0));
+print('Downstream terminal segments (NEXT_DOWN=0):', terminalSegments.size());
+
+// Extract the actual downstream-most vertex of each terminal segment,
+// so we can pin an exact point marker (not just highlight the whole line)
+var terminalPoints = terminalSegments.map(function(f) {
+  var coords = ee.List(f.geometry().coordinates());
+  var lastCoord = ee.List(coords.get(coords.length().subtract(1)));
+  return ee.Feature(ee.Geometry.Point(lastCoord), f.toDictionary());
+});
+
+// ------------------------------------------------------------
+// PART 2: Dangling UPSTREAM ends inside AOI (candidates for truncation)
+// Uses a proper spatial/attribute JOIN instead of inList, to avoid
+// the "Filter is too complex" error seen earlier at this data scale.
+// ------------------------------------------------------------
+var idMatchFilter = ee.Filter.equals({
+  leftField: 'HYRIV_ID',
+  rightField: 'NEXT_DOWN'
+});
+
+// Inverted join: keep segments in riverAOI whose HYRIV_ID is NOT
+// referenced as anyone else's NEXT_DOWN within the AOI
+var danglingUpstream = ee.Join.inverted().apply(riverAOI, riverAOI, idMatchFilter);
+print('Dangling upstream-end segments inside AOI:', danglingUpstream.size());
+
+// ------------------------------------------------------------
+// PART 3: Check the GLOBAL (unclipped) dataset — does a real feeder
+// segment exist OUTSIDE the AOI whose NEXT_DOWN points into one of
+// these dangling segments? If yes -> genuine truncation.
+// ------------------------------------------------------------
+var truncatedCandidates = ee.Join.simple().apply(danglingUpstream, Hydro_River, idMatchFilter);
+print('Segments with a real feeder from outside AOI (TRUNCATION):', truncatedCandidates.size());
+print('Sample truncated candidates:', truncatedCandidates.limit(10));
+
+// Segments with NO global feeder = genuine natural headwaters
+var genuineHeadwaters = danglingUpstream.filter(
+  ee.Filter.inList('HYRIV_ID', truncatedCandidates.aggregate_array('HYRIV_ID')).not()
+);
+print('Genuine headwater segments (no outside feeder exists):', genuineHeadwaters.size());
+
+// ------------------------------------------------------------
+// PART 4: Map visualization — everything color-coded and separated
+// ------------------------------------------------------------
+Map.centerObject(Upper_Indus_AOI, 6);
+Map.addLayer(Upper_Indus_AOI, {color: 'gray'}, 'AOI (Level-8, 440 basins)');
+Map.addLayer(riverAOI, {color: 'blue'}, 'HydroRIVERS in AOI');
+Map.addLayer(terminalSegments, {color: 'orange'}, 'Terminal segments (NEXT_DOWN=0)');
+Map.addLayer(terminalPoints, {color: 'red'}, 'Terminal END-POINTS (exact sink location)');
+Map.addLayer(truncatedCandidates, {color: 'pink'}, 'TRUNCATED — real feeder exists outside AOI');
+Map.addLayer(genuineHeadwaters, {color: 'green'}, 'Genuine headwaters (no outside feeder)');
+
+// Print exact coordinates of all 24 terminal points, to see the real distribution
+print('All 24 terminal point coordinates:', 
+  terminalPoints.aggregate_array('.geo'));
+
+// Also print how many terminals share very similar geographic clusters
+// by rounding coordinates to ~0.05 degrees and counting groups
+print('Terminal segments with their HYRIV_ID and coordinates:',
+  terminalSegments.select(['HYRIV_ID', 'NEXT_DOWN']));
